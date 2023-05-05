@@ -1,4 +1,17 @@
-﻿  Source.c
-  animationcontroller.vcxproj -> C:\Users\64272\Documents\uni\uni stuff yr 2\comp612graphics\612graphics_repos\projectstuff\heliproject\animationcontroller\Debug\animationcontroller.exe
+﻿C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v170\Microsoft.CppBuild.targets(517,5): warning MSB8028: The intermediate directory (Debug\) contains files shared from another project (animationcontroller.vcxproj).  This can lead to incorrect clean and rebuild behavior.
+  Source.c
+C:\Users\64272\Documents\uni\uni stuff yr 2\comp612graphics\612graphics_repos\projectstuff\heliproject\animationcontroller\animationcontroller\Source.c(658,15): warning C4244: '=': conversion from 'double' to 'GLfloat', possible loss of data
+C:\Users\64272\Documents\uni\uni stuff yr 2\comp612graphics\612graphics_repos\projectstuff\heliproject\animationcontroller\animationcontroller\Source.c(665,24): warning C4244: '=': conversion from 'double' to 'GLfloat', possible loss of data
+C:\Users\64272\Documents\uni\uni stuff yr 2\comp612graphics\612graphics_repos\projectstuff\heliproject\animationcontroller\animationcontroller\Source.c(666,24): warning C4244: '=': conversion from 'double' to 'GLfloat', possible loss of data
+C:\Users\64272\Documents\uni\uni stuff yr 2\comp612graphics\612graphics_repos\projectstuff\heliproject\animationcontroller\animationcontroller\Source.c(676,29): warning C4244: '-=': conversion from 'double' to 'GLfloat', possible loss of data
+C:\Users\64272\Documents\uni\uni stuff yr 2\comp612graphics\612graphics_repos\projectstuff\heliproject\animationcontroller\animationcontroller\Source.c(677,29): warning C4244: '-=': conversion from 'double' to 'GLfloat', possible loss of data
+C:\Users\64272\Documents\uni\uni stuff yr 2\comp612graphics\612graphics_repos\projectstuff\heliproject\animationcontroller\animationcontroller\Source.c(678,28): warning C4244: '-=': conversion from 'double' to 'GLfloat', possible loss of data
+C:\Users\64272\Documents\uni\uni stuff yr 2\comp612graphics\612graphics_repos\projectstuff\heliproject\animationcontroller\animationcontroller\Source.c(679,28): warning C4244: '-=': conversion from 'double' to 'GLfloat', possible loss of data
+C:\Users\64272\Documents\uni\uni stuff yr 2\comp612graphics\612graphics_repos\projectstuff\heliproject\animationcontroller\animationcontroller\Source.c(685,29): warning C4244: '+=': conversion from 'double' to 'GLfloat', possible loss of data
+C:\Users\64272\Documents\uni\uni stuff yr 2\comp612graphics\612graphics_repos\projectstuff\heliproject\animationcontroller\animationcontroller\Source.c(686,29): warning C4244: '-=': conversion from 'double' to 'GLfloat', possible loss of data
+C:\Users\64272\Documents\uni\uni stuff yr 2\comp612graphics\612graphics_repos\projectstuff\heliproject\animationcontroller\animationcontroller\Source.c(687,28): warning C4244: '+=': conversion from 'double' to 'GLfloat', possible loss of data
+C:\Users\64272\Documents\uni\uni stuff yr 2\comp612graphics\612graphics_repos\projectstuff\heliproject\animationcontroller\animationcontroller\Source.c(688,28): warning C4244: '-=': conversion from 'double' to 'GLfloat', possible loss of data
+C:\Users\64272\Documents\uni\uni stuff yr 2\comp612graphics\612graphics_repos\projectstuff\heliproject\animationcontroller\animationcontroller\Source.c(694,16): warning C4244: '+=': conversion from 'double' to 'GLfloat', possible loss of data
+  animationcontroller.vcxproj -> C:\Users\64272\Documents\uni\uni stuff yr 2\comp612graphics\612graphics_repos\projectstuff\heliproject\animationcontroller\Debug\heliproj.exe
   C:\Users\64272\Documents\uni\uni stuff yr 2\comp612graphics\612graphics_repos\projectstuff\heliproject\animationcontroller\animationcontroller\freeglut\bin\freeglut.dll
   1 File(s) copied

@@ -1,16 +1,23 @@
 /******************************************************************************
  *
- * Animation Controller v1.0 (23/02/2021)
+ * Computer Graphics Programming 2020 Project Template v1.0 (11/04/2021)
+ *
+ * Based on: Animation Controller v1.0 (11/04/2021)
  *
  * This template provides a basic FPS-limited render loop for an animated scene,
  * plus keyboard handling for smooth game-like control of an object such as a
  * character or vehicle.
+ *
+ * A simple static lighting setup is provided via initLights(), which is not
+ * included in the animationalcontrol.c template. There are no other changes.
  *
  ******************************************************************************/
 
 #include <Windows.h>
 #include <freeglut.h>
 #include <math.h>
+#include <stdio.h>
+
 
  /******************************************************************************
   * Animation & Timing Setup
@@ -36,27 +43,67 @@ unsigned int frameStartTime = 0;
  ******************************************************************************/
 
 #define MOTION_NONE 0				// No motion.
+#define MOTION_CLOCKWISE -1			// Clockwise rotation.
+#define MOTION_ANTICLOCKWISE 1		// Anticlockwise rotation.
 #define MOTION_BACKWARD -1			// Backward motion.
 #define MOTION_FORWARD 1			// Forward motion.
 #define MOTION_LEFT -1				// Leftward motion.
 #define MOTION_RIGHT 1				// Rightward motion.
 #define MOTION_DOWN -1				// Downward motion.
 #define MOTION_UP 1					// Upward motion.
-#define MOTION_CLOCKWISE -1			// Clockwise rotation.
-#define MOTION_ANTICLOCKWISE 1		// Anticlockwise rotation.
 
- // Represents the motion of an object on four axes (Surge, Sway, Heave, and Yaw).
+ // Represents the motion of an object on four axes (Yaw, Surge, Sway, and Heave).
  // 
  // You can use any numeric values, as specified in the comments for each axis. However,
  // the MOTION_ definitions offer an easy way to define a "unit" movement without using
  // magic numbers (e.g. instead of setting Surge = 1, you can set Surge = MOTION_FORWARD).
  //
 typedef struct {
+	int Yaw;		// Turn about the Z axis	[<0 = Clockwise, 0 = Stop, >0 = Anticlockwise]
 	int Surge;		// Move forward or back		[<0 = Backward,	0 = Stop, >0 = Forward]
 	int Sway;		// Move sideways (strafe)	[<0 = Left, 0 = Stop, >0 = Right]
 	int Heave;		// Move vertically			[<0 = Down, 0 = Stop, >0 = Up]
-	int Yaw;		// Turn about the Z axis	[<0 = Clockwise, 0 = Stop, >0 = Anticlockwise]
 } motionstate4_t;
+
+
+// MY FUNCTIONS
+
+//cube vertices
+GLfloat vertices[][3] = { {-1.0,-1.0,-1.0}, {1.0,-1.0,-1.0}, {1.0,1.0,-1.0}, {-
+1.0,1.0,-1.0},
+{-1.0,-1.0, 1.0}, {1.0,-1.0, 1.0},
+{1.0,1.0, 1.0}, {-1.0,1.0, 1.0} };
+// colors of the vertices
+GLfloat colors[][3] = { {0.0,0.0,0.0}, {1.0,0.0,0.0}, {1.0,1.0,0.0}, {0.0,1.0,0.0},
+{0.0,0.0,1.0}, {1.0,0.0,1.0},
+{1.0,1.0,1.0}, {0.0,1.0,1.0} };
+// speed of rotation
+GLfloat interpDifference = 0.5f;
+// window dimensions
+GLint windowWidth = 500;
+GLint windowHeight = 400;
+
+typedef struct {
+	GLfloat x;
+	GLfloat y;
+	GLfloat z;
+} pos;
+
+pos heliPos = {0, 0, 0};
+pos prevHeliPos = { 0, 0, 0 };
+
+double surgeDirection = 0;
+double swayDirection = 0;
+
+pos camPos = { 0, 0, 2 }; // away from the viewer with -2 on the z acis
+GLfloat camAngle;
+GLfloat camDistance = 10.0f;
+
+
+GLfloat heliAngle = 0;
+
+const float moveSpeed = 2.0f; // metres pper sec
+
 
 /******************************************************************************
  * Keyboard Input Handling Setup
@@ -128,6 +175,9 @@ void idle(void);
 void main(int argc, char** argv);
 void init(void);
 void think(void);
+void initLights(void);
+
+void colorcube();
 
 /******************************************************************************
  * Animation-Specific Setup (Add your own definitions, constants, and globals here)
@@ -183,6 +233,64 @@ void main(int argc, char** argv)
  */
 void display(void)
 {
+
+
+	// clear the screen
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	// load the identity matrix into the model view matrix
+	glLoadIdentity();
+
+		gluLookAt(camPos.x,camPos.y, camPos.z,
+			heliPos.x, heliPos.y, heliPos.z,
+			0, 1, 0);
+
+
+		// Draw the positive side of the lines x,y,z
+		if (renderFillEnabled) {
+			glRenderMode(GLU_LINE);
+		}
+		else {
+			glRenderMode(GLU_FILL);
+		}
+		glBegin(GL_LINES);
+		glColor3f(0.0f, 1.0f, 0.0f);                // Green for x axis
+		glVertex3f(0, 0, 0);
+		glVertex3f(10, 0, 0);
+		glColor3f(1.0f, 0.0f, 0.0f);                // Red for y axis
+		glVertex3f(0, 0, 0);
+		glVertex3f(0, 10, 0);
+		glColor3f(0.0f, 0.0f, 1.0f);                // Blue for z axis
+		glVertex3f(0, 0, 0);
+		glVertex3f(0, 0, 10);
+		glEnd();
+
+		glBegin(GL_POLYGON);
+		// 
+			glVertex3f(1.0f, 0.0f, 1.0f);
+			glVertex3f(-1.0f, 0.0f, 1.0f);
+			glVertex3f(-1.0f, 0.0f, -1.0f);
+			glVertex3f(1.0f, 0.0f, -1.0f);
+			
+			glEnd();
+
+		GLUquadricObj* quadricPtr;
+
+		glPushMatrix();
+
+		glTranslatef(heliPos.x, heliPos.y, heliPos.z);
+		glRotatef(heliAngle, 0.0f, 1.0f, 0.0f);
+		quadricPtr = gluNewQuadric();
+		// set to greyish blue
+		glColor3f(126.0f/255.0f, 148.0f /255.0f, 142.0f /255.0f);
+		gluQuadricDrawStyle(quadricPtr, GLU_FILL);
+
+		gluSphere(quadricPtr, 0.1, 10, 5);
+		gluDeleteQuadric(quadricPtr);
+
+		glPopMatrix();
+
+
+	glutSwapBuffers();
 	/*
 		TEMPLATE: REPLACE THIS COMMENT WITH YOUR DRAWING CODE
 
@@ -192,6 +300,7 @@ void display(void)
 		Remember to add prototypes for any new functions to the "Animation-Specific
 		Function Prototypes" section near the top of this template.
 	*/
+
 }
 
 /*
@@ -199,6 +308,22 @@ void display(void)
 */
 void reshape(int width, int h)
 {
+	// update the new width
+	windowWidth = width;
+	// update the new height
+	windowHeight = h;
+	// update the viewport to still be all of the window
+	glViewport(0, 0, windowWidth, windowHeight);
+	// change into projection mode so that we can change the camera properties
+	glMatrixMode(GL_PROJECTION);
+	// load the identity matrix into the projection matrix
+	glLoadIdentity();
+	// gluPerspective(fovy, aspect, near, far)
+	gluPerspective(45, (float)windowWidth / (float)windowHeight, 1, 20);
+	// change into model-view mode so that we can change the object positions
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+
 }
 
 /*
@@ -418,7 +543,56 @@ void idle(void)
 	 Initialise OpenGL and set up our scene before we begin the render loop.
  */
 void init(void)
+{	
+	initLights();
+
+	// enable depth testing
+	glEnable(GL_DEPTH_TEST);
+	// set background color to be black
+	glClearColor(0, 0, 0, 1.0);
+	glColor3f(1.0, 1.0, 1.0);
+	// change into projection mode so that we can change the camera properties
+	glMatrixMode(GL_PROJECTION);
+	// load the identity matrix into the projection matrix
+	glLoadIdentity();
+
+	glShadeModel(GL_FLAT);
+	glEnable(GL_LINE_SMOOTH);
+	glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+
+	// set window mode to 3D orthographic
+	// glOrtho(left, right, bottom, top, near, far);
+	//remember near and far are distance from the camera (COP)
+	//glOrtho(-2.0, 2.0, -2.0, 2.0, 0.1, 10.0);
+	// change into model-view mode so that we can change the object positions
+	glMatrixMode(GL_MODELVIEW);
+
+
+}
+void polygon(int a, int b, int c, int d)
 {
+	glBegin(GL_POLYGON);
+	glColor3fv(colors[a]);
+	glVertex3fv(vertices[a]);
+	glColor3fv(colors[b]);
+	glVertex3fv(vertices[b]);
+	glColor3fv(colors[c]);
+	glVertex3fv(vertices[c]);
+	glColor3fv(colors[d]);
+	glVertex3fv(vertices[d]);
+	glEnd();
+}
+/*
+Map the vertices to the cube faces.
+*/
+void colorcube()
+{
+	polygon(0, 3, 2, 1);
+	polygon(2, 3, 7, 6);
+	polygon(0, 4, 7, 3);
+	polygon(1, 2, 6, 5);
+	polygon(4, 5, 6, 7);
+	polygon(0, 1, 5, 4);
 }
 
 /*
@@ -431,6 +605,9 @@ void init(void)
 */
 void think(void)
 {
+
+
+
 	/*
 		TEMPLATE: REPLACE THIS COMMENT WITH YOUR ANIMATION/SIMULATION CODE
 
@@ -475,18 +652,86 @@ void think(void)
 		Keyboard motion handler: complete this section to make your "player-controlled"
 		object respond to keyboard input.
 	*/
-	if (keyboardMotion.Surge != MOTION_NONE) {
-		/* TEMPLATE: Move your object backward if .Surge < 0, or forward if .Surge > 0 */
-	}
-	if (keyboardMotion.Sway != MOTION_NONE) {
-		/* TEMPLATE: Move (strafe) your object left if .Sway < 0, or right if .Sway > 0 */
-	}
-	if (keyboardMotion.Heave != MOTION_NONE) {
-		/* TEMPLATE: Move your object down if .Heave < 0, or up if .Heave > 0 */
-	}
 	if (keyboardMotion.Yaw != MOTION_NONE) {
-		/* TEMPLATE: Turn your object right (clockwise) if .Yaw < 0, or left (anticlockwise) if .Yaw > 0 */
+		// Update helicopter angle
+		heliAngle += keyboardMotion.Yaw * (moveSpeed + 50) * FRAME_TIME_SEC;
+		heliAngle = fmod(heliAngle, 360.0f);
+
+		// Calculate yaw angle in radians
+		double yawAngle = heliAngle * (3.14 / 180.0f);
+
+		// Calculate new camera position
+		double distanceXZ = sqrt(pow(heliPos.z - camPos.z, 2) + pow(heliPos.x - camPos.x, 2));
+		camPos.x = heliPos.x + sin(yawAngle) * distanceXZ;
+		camPos.z = heliPos.z + cos(yawAngle) * distanceXZ;
+
+		// Adjust surge and sway according to yaw angle
+		surgeDirection = sin(yawAngle);
+		swayDirection = cos(yawAngle);
 	}
+
+	if (keyboardMotion.Surge != MOTION_NONE) {
+		// Move helicopter and camera
+		double moveDistance = keyboardMotion.Surge * moveSpeed * FRAME_TIME_SEC;
+		heliPos.x -= moveDistance * sin(heliAngle * (3.14 / 180.0f));
+		heliPos.z -= moveDistance * cos(heliAngle * (3.14 / 180.0f));
+		camPos.x -= moveDistance * sin(heliAngle * (3.14 / 180.0f));
+		camPos.z -= moveDistance * cos(heliAngle * (3.14 / 180.0f));
+	}
+
+	if (keyboardMotion.Sway != MOTION_NONE) {
+		// Move helicopter and camera left/right
+		double moveDistance = keyboardMotion.Sway * moveSpeed * FRAME_TIME_SEC;
+		heliPos.x += moveDistance * cos(heliAngle * (3.14 / 180.0f));
+		heliPos.z -= moveDistance * sin(heliAngle * (3.14 / 180.0f));
+		camPos.x += moveDistance * cos(heliAngle * (3.14 / 180.0f));
+		camPos.z -= moveDistance * sin(heliAngle * (3.14 / 180.0f));
+	}
+
+	if (keyboardMotion.Heave != MOTION_NONE) {
+		// Move helicopter and camera
+		double heave = keyboardMotion.Heave * moveSpeed * FRAME_TIME_SEC;
+		heliPos.y += heave;
+		camPos.y = heliPos.y;
+	}
+
+}
+
+
+/*
+	Initialise OpenGL lighting before we begin the render loop.
+
+	Note (advanced): If you're using dynamic lighting (e.g. lights that move around, turn on or
+	off, or change colour) you may want to replace this with a drawLights function that gets called
+	at the beginning of display() instead of init().
+*/
+void initLights(void)
+{
+	// Simple lighting setup
+	GLfloat globalAmbient[] = { 0.4f, 0.4f, 0.4f, 1 };
+	GLfloat lightPosition[] = { 5.0f, 5.0f, 5.0f, 1.0f };
+	GLfloat ambientLight[] = { 0, 0, 0, 1 };
+	GLfloat diffuseLight[] = { 1, 1, 1, 1 };
+	GLfloat specularLight[] = { 1, 1, 1, 1 };
+
+	// Configure global ambient lighting.
+	glLightModelfv(GL_LIGHT_MODEL_AMBIENT, globalAmbient);
+
+	// Configure Light 0.
+	glLightfv(GL_LIGHT0, GL_POSITION, lightPosition);
+	glLightfv(GL_LIGHT0, GL_AMBIENT, ambientLight);
+	glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuseLight);
+	glLightfv(GL_LIGHT0, GL_SPECULAR, specularLight);
+
+	// Enable lighting
+	glEnable(GL_LIGHTING);
+	glEnable(GL_LIGHT0);
+
+	// Make GL normalize the normal vectors we supply.
+	glEnable(GL_NORMALIZE);
+
+	// Enable use of simple GL colours as materials.
+	glEnable(GL_COLOR_MATERIAL);
 }
 
 /******************************************************************************/

@@ -24,6 +24,7 @@
     <ProjectGuid>{7ad2e59f-8b77-41e6-803f-205febd9c14c}</ProjectGuid>
     <RootNamespace>animationcontroller</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>heliproj</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
