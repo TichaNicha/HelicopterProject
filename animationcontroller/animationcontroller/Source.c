@@ -67,18 +67,17 @@ typedef struct {
 
 
 // MY FUNCTIONS
+void drawRectangle3D(GLfloat x1, GLfloat y1, GLfloat z1, GLfloat x2, GLfloat y2, GLfloat z2);
+void drawSea();
+void drawScene();
 
 //cube vertices
 GLfloat vertices[][3] = { {-1.0,-1.0,-1.0}, {1.0,-1.0,-1.0}, {1.0,1.0,-1.0}, {-
 1.0,1.0,-1.0},
 {-1.0,-1.0, 1.0}, {1.0,-1.0, 1.0},
 {1.0,1.0, 1.0}, {-1.0,1.0, 1.0} };
-// colors of the vertices
-GLfloat colors[][3] = { {0.0,0.0,0.0}, {1.0,0.0,0.0}, {1.0,1.0,0.0}, {0.0,1.0,0.0},
-{0.0,0.0,1.0}, {1.0,0.0,1.0},
-{1.0,1.0,1.0}, {0.0,1.0,1.0} };
-// speed of rotation
-GLfloat interpDifference = 0.5f;
+
+
 // window dimensions
 GLint windowWidth = 500;
 GLint windowHeight = 400;
@@ -89,20 +88,42 @@ typedef struct {
 	GLfloat z;
 } pos;
 
-pos heliPos = {0, 0, 0};
+// sea mesh size
+const int seaSizeX = 100;
+const int seaSizeZ = 100;
+const float seaMaxY = 0.1f;
+
+// helicopter engine is initially set to off
+int heliStart = 0;
+// toggle side view
+int sideView = 0;
+
+pos heliPos = {0, 0.5f, 0};
 pos prevHeliPos = { 0, 0, 0 };
+
+GLfloat heliRadius = 0.1;
+GLfloat heliTailLength = 0.15;
+GLfloat heliLegLength = 0.05;
+GLfloat heliAngle = 0;
+
+// angle 1 for back propellor
+GLfloat propellorAngle = 0;
+// angle 2 for top propellor
+GLfloat propellorAngle2 = 0;
+
+// degrees per frame for back propellor
+GLfloat propellorSpeed = -720;
 
 double surgeDirection = 0;
 double swayDirection = 0;
 
-pos camPos = { 0, 0, 2 }; // away from the viewer with -2 on the z acis
+pos camPos = { 0, 1.0f, 2 }; // away from the viewer with 2 on the z acis {0, 1.0f, 2}
 GLfloat camAngle;
 GLfloat camDistance = 10.0f;
 
-
-GLfloat heliAngle = 0;
-
-const float moveSpeed = 2.0f; // metres pper sec
+const float moveSpeed = 2.0f; // metres per sec
+GLfloat deltaTime;
+GLfloat oldDeltaTime;
 
 
 /******************************************************************************
@@ -147,6 +168,7 @@ motionstate4_t keyboardMotion = { MOTION_NONE, MOTION_NONE, MOTION_NONE, MOTION_
 #define KEY_MOVE_LEFT		'a'
 #define KEY_MOVE_RIGHT		'd'
 #define KEY_RENDER_FILL		'l'
+#define KEY_SIDE_VIEW		'x'
 #define KEY_EXIT			27 // Escape key.
 
 // Define all GLUT special keys used for input (add any new key definitions here).
@@ -234,24 +256,25 @@ void main(int argc, char** argv)
 void display(void)
 {
 
-
 	// clear the screen
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	// load the identity matrix into the model view matrix
 	glLoadIdentity();
 
-		gluLookAt(camPos.x,camPos.y, camPos.z,
-			heliPos.x, heliPos.y, heliPos.z,
-			0, 1, 0);
-
 
 		// Draw the positive side of the lines x,y,z
 		if (renderFillEnabled) {
-			glRenderMode(GLU_LINE);
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		}
 		else {
-			glRenderMode(GLU_FILL);
+			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		}
+
+		gluLookAt(camPos.x, camPos.y, camPos.z,
+			heliPos.x, heliPos.y, heliPos.z,
+			0, 1, 0);
+
+		// lines coming out of origin
 		glBegin(GL_LINES);
 		glColor3f(0.0f, 1.0f, 0.0f);                // Green for x axis
 		glVertex3f(0, 0, 0);
@@ -264,27 +287,69 @@ void display(void)
 		glVertex3f(0, 0, 10);
 		glEnd();
 
-		glBegin(GL_POLYGON);
-		// 
-			glVertex3f(1.0f, 0.0f, 1.0f);
-			glVertex3f(-1.0f, 0.0f, 1.0f);
-			glVertex3f(-1.0f, 0.0f, -1.0f);
-			glVertex3f(1.0f, 0.0f, -1.0f);
-			
-			glEnd();
-
+		// DRAW SEA
+		drawScene();
 		GLUquadricObj* quadricPtr;
 
+		// helicopter base
 		glPushMatrix();
 
 		glTranslatef(heliPos.x, heliPos.y, heliPos.z);
 		glRotatef(heliAngle, 0.0f, 1.0f, 0.0f);
 		quadricPtr = gluNewQuadric();
+		
 		// set to greyish blue
 		glColor3f(126.0f/255.0f, 148.0f /255.0f, 142.0f /255.0f);
 		gluQuadricDrawStyle(quadricPtr, GLU_FILL);
+		gluSphere(quadricPtr, heliRadius, 10, 5);
 
-		gluSphere(quadricPtr, 0.1, 10, 5);
+		// helicopter legs
+		glPushMatrix();
+		glTranslatef(0, -heliRadius + 0.01, 0);
+		// right leg
+		drawRectangle3D(0.025, 0.01, 0.0, 0.05, -0.02, 0.01);
+		// left leg
+		drawRectangle3D(-0.025, 0.01, 0.0, -0.05, -0.02, 0.01);
+
+
+		glPopMatrix();
+
+		// helicopter tail
+		glPushMatrix();
+
+		glTranslatef(0, 0, heliRadius);
+
+		gluCylinder(quadricPtr, 0.02, 0.01, heliTailLength, 5, 5);
+
+		// helicopter back propellor
+		glPushMatrix();
+		// set to blue 
+		glColor3f(75.0f / 255.0f, 222.0f / 255.0f, 222.0f / 255.0f);
+		glTranslatef(0.015, 0, heliTailLength);
+		glRotatef(propellorAngle, 1, 0, 0);
+
+		// horizontal propellor
+		drawRectangle3D(0.0, 0.0, -0.055, 0.01, 0.01, 0.055);
+		// vertical propellor
+		drawRectangle3D(0.0, -0.055, 0.0, 0.01, 0.055, 0.01);
+
+		glPopMatrix();
+
+		glPopMatrix();
+
+		// helicopter top propellor
+		glPushMatrix();
+		glTranslatef(0, heliRadius, 0);
+		glRotatef(propellorAngle2, 0, 1, 0);
+
+		// horizontal propellor
+		drawRectangle3D(0.0, 0.0, -.15, 0.01, 0.015, 0.15);
+		// horizontal propellor
+		drawRectangle3D(-.15, 0, 0.0, .15, 0.015, 0.01);
+
+		glPopMatrix();
+
+
 		gluDeleteQuadric(quadricPtr);
 
 		glPopMatrix();
@@ -375,6 +440,14 @@ void keyPressed(unsigned char key, int x, int y)
 	case KEY_EXIT:
 		exit(0);
 		break;
+
+	case KEY_SIDE_VIEW:
+		if (sideView) {
+			sideView = !sideView;
+		}
+		else {
+			sideView = 1;
+		}
 	}
 }
 
@@ -543,7 +616,7 @@ void idle(void)
 	 Initialise OpenGL and set up our scene before we begin the render loop.
  */
 void init(void)
-{	
+{
 	initLights();
 
 	// enable depth testing
@@ -551,34 +624,28 @@ void init(void)
 	// set background color to be black
 	glClearColor(0, 0, 0, 1.0);
 	glColor3f(1.0, 1.0, 1.0);
-	// change into projection mode so that we can change the camera properties
-	glMatrixMode(GL_PROJECTION);
 	// load the identity matrix into the projection matrix
-	glLoadIdentity();
+	glMatrixMode(GL_PROJECTION);
 
 	glShadeModel(GL_FLAT);
 	glEnable(GL_LINE_SMOOTH);
 	glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
 
-	// set window mode to 3D orthographic
-	// glOrtho(left, right, bottom, top, near, far);
-	//remember near and far are distance from the camera (COP)
-	//glOrtho(-2.0, 2.0, -2.0, 2.0, 0.1, 10.0);
+	// set window mode to 3D perspective
+	// gluPerspective(fovy, aspect, near, far);
+	gluPerspective(60, (double)windowWidth / (double)windowHeight, 1, 200);
+
 	// change into model-view mode so that we can change the object positions
 	glMatrixMode(GL_MODELVIEW);
-
-
+	glLoadIdentity();
 }
+
 void polygon(int a, int b, int c, int d)
 {
 	glBegin(GL_POLYGON);
-	glColor3fv(colors[a]);
 	glVertex3fv(vertices[a]);
-	glColor3fv(colors[b]);
 	glVertex3fv(vertices[b]);
-	glColor3fv(colors[c]);
 	glVertex3fv(vertices[c]);
-	glColor3fv(colors[d]);
 	glVertex3fv(vertices[d]);
 	glEnd();
 }
@@ -595,6 +662,119 @@ void colorcube()
 	polygon(0, 1, 5, 4);
 }
 
+void drawRectangle3D(GLfloat x1, GLfloat y1, GLfloat z1, GLfloat x2, GLfloat y2, GLfloat z2) {
+	// draw rectangle
+	glBegin(GL_QUADS);
+
+	// front face
+	glVertex3f(x1, y1, z1);
+	glVertex3f(x2, y1, z1);
+	glVertex3f(x2, y2, z1);
+	glVertex3f(x1, y2, z1);
+
+	// back face
+	glVertex3f(x1, y1, z2);
+	glVertex3f(x2, y1, z2);
+	glVertex3f(x2, y2, z2);
+	glVertex3f(x1, y2, z2);
+
+	// top face
+	glVertex3f(x1, y2, z1);
+	glVertex3f(x2, y2, z1);
+	glVertex3f(x2, y2, z2);
+	glVertex3f(x1, y2, z2);
+
+	// bottom face
+	glVertex3f(x1, y1, z1);
+	glVertex3f(x2, y1, z1);
+	glVertex3f(x2, y1, z2);
+	glVertex3f(x1, y1, z2);
+
+	// left face
+	glVertex3f(x1, y1, z1);
+	glVertex3f(x1, y2, z1);
+	glVertex3f(x1, y2, z2);
+	glVertex3f(x1, y1, z2);
+
+	// right face
+	glVertex3f(x2, y1, z1);
+	glVertex3f(x2, y2, z1);
+	glVertex3f(x2, y2, z2);
+	glVertex3f(x2, y1, z2);
+
+	glEnd();
+}
+
+/*void drawSea(int sizeX, int sizeZ) {
+	float centerX = (float)sizeX / 2.0f; // calculate the center x-coordinate of the sea
+	float centerZ = (float)sizeZ / 2.0f; // calculate the center z-coordinate of the sea
+	glBegin(GL_QUADS);
+	for (int z = 0; z < sizeZ; z++) {
+		// within camera view
+		for (int x = 0; x < sizeX; x++) {
+			glVertex3f(((float)x - centerX) * 0.1, 0.0f, ((float)z - centerZ) * 0.1); // offset the x and z coordinates by half the size of the sea
+			glVertex3f(((float)(x + 1) - centerX) * 0.1, 0.0f, ((float)z - centerZ) * 0.1);
+			glVertex3f(((float)(x + 1) - centerX) * 0.1, 0.0f, ((float)(z + 1) - centerZ) * 0.1);
+			glVertex3f(((float)x - centerX) * 0.1, 0.0f, ((float)(z + 1) - centerZ) * 0.1);
+		// more accurate scene but not within camera view
+			/*glVertex3f(((float)x - centerX) * 1, 0.0f, ((float)z - centerZ) * 1); // offset the x and z coordinates by half the size of the sea
+			glVertex3f(((float)(x + 1) - centerX) * 1, 0.0f, ((float)z - centerZ) * 1);
+			glVertex3f(((float)(x + 1) - centerX) * 1, 0.0f, ((float)(z + 1) - centerZ) * 1);
+			glVertex3f(((float)x - centerX) * 1, 0.0f, ((float)(z + 1) - centerZ) * 1);
+		}
+	}
+	glEnd();
+}*/
+
+void drawSea(int sizeX, int sizeZ, float time, float maxY) {
+	float centerX = (float)sizeX / 2.0f;
+	float centerZ = (float)sizeZ / 2.0f;
+	float amplitude = maxY;
+	float frequency = 2.0f;
+	int numVertices = sizeX * sizeZ;
+	int numIndices = (sizeX - 1) * (sizeZ - 1) * 4;
+	float* vertices = (float*)malloc(numVertices * 3 * sizeof(float));
+	int* indices = (int*)malloc(numIndices * sizeof(int));
+	int index = 0;
+	for (int z = 0; z < sizeZ; z++) {
+		for (int x = 0; x < sizeX; x++) {
+			float vertexX = ((float)x - centerX) * 0.1f;
+			float vertexZ = ((float)z - centerZ) * 0.1f;
+			float vertexY = amplitude * sinf(frequency * vertexX + time) * sinf(frequency * vertexZ + time);
+			vertices[index++] = vertexX;
+			vertices[index++] = vertexY;
+			vertices[index++] = vertexZ;
+		}
+	}
+	index = 0;
+	for (int z = 0; z < sizeZ - 1; z++) {
+		for (int x = 0; x < sizeX - 1; x++) {
+			int vertexIndex = z * sizeX + x;
+			indices[index++] = vertexIndex;
+			indices[index++] = vertexIndex + sizeX;
+			indices[index++] = vertexIndex + sizeX + 1;
+			indices[index++] = vertexIndex + 1;
+		}
+	}
+	glBegin(GL_QUADS);
+	for (int i = 0; i < numIndices; i++) {
+		int vertexIndex = indices[i] * 3;
+		glVertex3f(vertices[vertexIndex], vertices[vertexIndex + 1], vertices[vertexIndex + 2]);
+	}
+	glEnd();
+	free(vertices);
+	free(indices);
+}
+
+// draw sea and mountain range and sky and all bg related objects
+void drawScene() {
+	static float lastTime = 0.0f;
+	float currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	float deltaTime = currentTime - lastTime;
+	lastTime = currentTime;
+	drawSea(seaSizeX, seaSizeZ, currentTime, seaMaxY); // pass in the current time value
+}
+
 /*
 	Advance our animation by FRAME_TIME milliseconds.
 
@@ -606,8 +786,27 @@ void colorcube()
 void think(void)
 {
 
+	//TODO helicopter start and stop animation 
+	if (heliStart) {
+		propellorAngle += propellorSpeed * FRAME_TIME_SEC;
+		propellorAngle2 += propellorSpeed * 1.5 * FRAME_TIME_SEC;
+	}
+	else {
+		// decrement propellor angle until 0
+		if (propellorAngle > 0) {
+			propellorAngle -= propellorSpeed * 0.5 * FRAME_TIME_SEC;
+		}
+		if (propellorAngle2 > 0) {
+			propellorAngle2 -= propellorSpeed * 0.5 * FRAME_TIME_SEC;
+		}
 
+	}
 
+	// FOR DEBUGGING
+	if (sideView) {
+		camPos.x = 2;
+		camPos.z = 0;
+	}
 	/*
 		TEMPLATE: REPLACE THIS COMMENT WITH YOUR ANIMATION/SIMULATION CODE
 
@@ -652,6 +851,11 @@ void think(void)
 		Keyboard motion handler: complete this section to make your "player-controlled"
 		object respond to keyboard input.
 	*/
+	if (keyboardMotion.Yaw || keyboardMotion.Heave || keyboardMotion.Surge || keyboardMotion.Sway) {
+		heliStart = 1;
+
+	}
+
 	if (keyboardMotion.Yaw != MOTION_NONE) {
 		// Update helicopter angle
 		heliAngle += keyboardMotion.Yaw * (moveSpeed + 50) * FRAME_TIME_SEC;
@@ -692,7 +896,11 @@ void think(void)
 		// Move helicopter and camera
 		double heave = keyboardMotion.Heave * moveSpeed * FRAME_TIME_SEC;
 		heliPos.y += heave;
-		camPos.y = heliPos.y;
+		camPos.y = heliPos.y + 0.5f;
+	}
+	// collision detection for heli and sea (sea max y)
+	if (heliPos.y - (heliRadius + heliLegLength) < seaMaxY) {
+		heliPos.y = seaMaxY+heliRadius+heliLegLength;
 	}
 
 }
