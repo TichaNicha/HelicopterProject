@@ -70,6 +70,12 @@ typedef struct {
 void drawRectangle3D(GLfloat x1, GLfloat y1, GLfloat z1, GLfloat x2, GLfloat y2, GLfloat z2);
 void drawSea();
 void drawScene();
+void playerControls();
+void drawCylinder();
+void drawHelicopter();
+// returns pointer to image data
+GLubyte* loadImage(float* imageWidth, float* imageHeight, char* fileName);
+
 
 //cube vertices
 GLfloat vertices[][3] = { {-1.0,-1.0,-1.0}, {1.0,-1.0,-1.0}, {1.0,1.0,-1.0}, {-
@@ -92,6 +98,14 @@ typedef struct {
 const int seaSizeX = 100;
 const int seaSizeZ = 100;
 const float seaMaxY = 0.1f;
+
+GLubyte* skyTexture;
+
+// scene is scaled to 0.1 (10x10) 
+// change to 1 when ready (100x100)
+const float sceneMultiplier = 0.1f;
+float seaRadius;
+GLfloat cylinderHeight = 30;
 
 // helicopter engine is initially set to off
 int heliStart = 0;
@@ -199,7 +213,6 @@ void init(void);
 void think(void);
 void initLights(void);
 
-void colorcube();
 
 /******************************************************************************
  * Animation-Specific Setup (Add your own definitions, constants, and globals here)
@@ -255,25 +268,23 @@ void main(int argc, char** argv)
  */
 void display(void)
 {
-
 	// clear the screen
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	// load the identity matrix into the model view matrix
 	glLoadIdentity();
 
+	if (renderFillEnabled) {
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	}
+	else {
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	}
+	// camera setup
+	gluLookAt(camPos.x, camPos.y, camPos.z,
+		heliPos.x, heliPos.y, heliPos.z,
+		0, 1, 0);
 
 		// Draw the positive side of the lines x,y,z
-		if (renderFillEnabled) {
-			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-		}
-		else {
-			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		}
-
-		gluLookAt(camPos.x, camPos.y, camPos.z,
-			heliPos.x, heliPos.y, heliPos.z,
-			0, 1, 0);
-
 		// lines coming out of origin
 		glBegin(GL_LINES);
 		glColor3f(0.0f, 1.0f, 0.0f);                // Green for x axis
@@ -287,86 +298,16 @@ void display(void)
 		glVertex3f(0, 0, 10);
 		glEnd();
 
-		// DRAW SEA
+		// DRAW SEA / SKY / ROCKS
 		drawScene();
-		GLUquadricObj* quadricPtr;
-
-		// helicopter base
-		glPushMatrix();
-
-		glTranslatef(heliPos.x, heliPos.y, heliPos.z);
-		glRotatef(heliAngle, 0.0f, 1.0f, 0.0f);
-		quadricPtr = gluNewQuadric();
 		
-		// set to greyish blue
-		glColor3f(126.0f/255.0f, 148.0f /255.0f, 142.0f /255.0f);
-		gluQuadricDrawStyle(quadricPtr, GLU_FILL);
-		gluSphere(quadricPtr, heliRadius, 10, 5);
-
-		// helicopter legs
-		glPushMatrix();
-		glTranslatef(0, -heliRadius + 0.01, 0);
-		// right leg
-		drawRectangle3D(0.025, 0.01, 0.0, 0.05, -0.02, 0.01);
-		// left leg
-		drawRectangle3D(-0.025, 0.01, 0.0, -0.05, -0.02, 0.01);
-
-
-		glPopMatrix();
-
-		// helicopter tail
-		glPushMatrix();
-
-		glTranslatef(0, 0, heliRadius);
-
-		gluCylinder(quadricPtr, 0.02, 0.01, heliTailLength, 5, 5);
-
-		// helicopter back propellor
-		glPushMatrix();
-		// set to blue 
-		glColor3f(75.0f / 255.0f, 222.0f / 255.0f, 222.0f / 255.0f);
-		glTranslatef(0.015, 0, heliTailLength);
-		glRotatef(propellorAngle, 1, 0, 0);
-
-		// horizontal propellor
-		drawRectangle3D(0.0, 0.0, -0.055, 0.01, 0.01, 0.055);
-		// vertical propellor
-		drawRectangle3D(0.0, -0.055, 0.0, 0.01, 0.055, 0.01);
-
-		glPopMatrix();
-
-		glPopMatrix();
-
-		// helicopter top propellor
-		glPushMatrix();
-		glTranslatef(0, heliRadius, 0);
-		glRotatef(propellorAngle2, 0, 1, 0);
-
-		// horizontal propellor
-		drawRectangle3D(0.0, 0.0, -.15, 0.01, 0.015, 0.15);
-		// horizontal propellor
-		drawRectangle3D(-.15, 0, 0.0, .15, 0.015, 0.01);
-
-		glPopMatrix();
-
-
-		gluDeleteQuadric(quadricPtr);
-
-		glPopMatrix();
-
+		drawHelicopter();
 
 	glutSwapBuffers();
-	/*
-		TEMPLATE: REPLACE THIS COMMENT WITH YOUR DRAWING CODE
-
-		Separate reusable pieces of drawing code into functions, which you can add
-		to the "Animation-Specific Functions" section below.
-
-		Remember to add prototypes for any new functions to the "Animation-Specific
-		Function Prototypes" section near the top of this template.
-	*/
 
 }
+
+
 
 /*
 	Called when the OpenGL window has been resized.
@@ -617,6 +558,14 @@ void idle(void)
  */
 void init(void)
 {
+	float skyWidth = 7583;
+	float skyHeight = 1960;
+	seaRadius = (seaSizeX * sceneMultiplier)/2;
+	skyTexture = loadImage(&skyWidth, &skyHeight, "/assets/sky.ppm");
+	glTexImage2D(GL_TEXTURE_2D, 0, 3, skyWidth, skyHeight, 0,
+		GL_RGB, GL_UNSIGNED_BYTE, skyTexture);
+
+
 	initLights();
 
 	// enable depth testing
@@ -640,26 +589,117 @@ void init(void)
 	glLoadIdentity();
 }
 
-void polygon(int a, int b, int c, int d)
-{
-	glBegin(GL_POLYGON);
-	glVertex3fv(vertices[a]);
-	glVertex3fv(vertices[b]);
-	glVertex3fv(vertices[c]);
-	glVertex3fv(vertices[d]);
-	glEnd();
-}
 /*
-Map the vertices to the cube faces.
-*/
-void colorcube()
+ * Loads a PPM image and returns a pointer to the image data
+ */
+GLubyte* loadImage(float* imageWidth, float* imageHeight, char* fileName)
 {
-	polygon(0, 3, 2, 1);
-	polygon(2, 3, 7, 6);
-	polygon(0, 4, 7, 3);
-	polygon(1, 2, 6, 5);
-	polygon(4, 5, 6, 7);
-	polygon(0, 1, 5, 4);
+	// the ID of the image file
+	FILE* fileID;
+
+	// maxValue
+	int  maxValue;
+
+	// total number of pixels in the image
+	int  totalPixels;
+
+	// temporary character
+	char tempChar;
+
+	// counter variable for the current pixel in the image
+	int i;
+
+	// array for reading in header information
+	char headerLine[100];
+
+	// if the original values are larger than 255
+	float RGBScaling;
+
+	// temporary variables for reading in the red, green and blue data of each pixel
+	int red, green, blue;
+
+	// open the image file for reading - note this is hardcoded would be better to provide a parameter which
+	//is the file name. There are 3 PPM files you can try out mount03, sky08 and sea02.
+	fileID = fopen(fileName, "r");
+
+	// read in the first header line
+	//    - "%[^\n]"  matches a string of all characters not equal to the new line character ('\n')
+	//    - so we are just reading everything up to the first line break
+	fscanf(fileID, "%[^\n] ", headerLine);
+
+	// make sure that the image begins with 'P3', which signifies a PPM file
+	if ((headerLine[0] != 'P') || (headerLine[1] != '3'))
+	{
+		printf("This is not a PPM file!\n");
+		exit(0);
+	}
+
+	// we have a PPM file
+	printf("This is a PPM file\n");
+
+	// read in the first character of the next line
+	fscanf(fileID, "%c", &tempChar);
+
+	// while we still have comment lines (which begin with #)
+	while (tempChar == '#')
+	{
+		// read in the comment
+		fscanf(fileID, "%[^\n] ", headerLine);
+
+		// print the comment
+		printf("%s\n", headerLine);
+
+		// read in the first character of the next line
+		fscanf(fileID, "%c", &tempChar);
+	}
+
+	// the last one was not a comment character '#', so we need to put it back into the file stream (undo)
+	ungetc(tempChar, fileID);
+
+	// read in the image hieght, width and the maximum value
+	fscanf(fileID, "%f %f %d", imageWidth, imageHeight, &maxValue);
+
+	// print out the information about the image file
+	printf("%d rows  %d columns  max value= %d\n", (int)*imageHeight, (int)*imageWidth, maxValue);
+
+	// compute the total number of pixels in the image
+	totalPixels = (int)(*imageWidth) * (int)(*imageHeight);
+
+	// allocate enough memory for the image  (3*) because of the RGB data
+	GLubyte* imageData = malloc(3 * sizeof(GLuint) * totalPixels);
+
+	// determine the scaling for RGB values
+	RGBScaling = 255.0 / maxValue;
+	// if the maxValue is 255 then we do not need to scale the 
+	//    image data values to be in the range or 0 to 255
+	if (maxValue == 255)
+	{
+		for (i = 0; i < totalPixels; i++)
+		{
+			// read in the current pixel from the file
+			fscanf(fileID, "%d %d %d", &red, &green, &blue);
+
+			// store the red, green and blue data of the current pixel in the data array
+			imageData[3 * totalPixels - 3 * i - 3] = red;
+			imageData[3 * totalPixels - 3 * i - 2] = green;
+			imageData[3 * totalPixels - 3 * i - 1] = blue;
+		}
+	}
+	else  // need to scale up the data values
+	{
+		for (i = 0; i < totalPixels; i++)
+		{
+			// read in the current pixel from the file
+			fscanf(fileID, "%d %d %d", &red, &green, &blue);
+
+			// store the red, green and blue data of the current pixel in the data array
+			imageData[3 * totalPixels - 3 * i - 3] = red * RGBScaling;
+			imageData[3 * totalPixels - 3 * i - 2] = green * RGBScaling;
+			imageData[3 * totalPixels - 3 * i - 1] = blue * RGBScaling;
+		}
+	}
+
+	return imageData;
 }
 
 void drawRectangle3D(GLfloat x1, GLfloat y1, GLfloat z1, GLfloat x2, GLfloat y2, GLfloat z2) {
@@ -705,26 +745,72 @@ void drawRectangle3D(GLfloat x1, GLfloat y1, GLfloat z1, GLfloat x2, GLfloat y2,
 	glEnd();
 }
 
-/*void drawSea(int sizeX, int sizeZ) {
-	float centerX = (float)sizeX / 2.0f; // calculate the center x-coordinate of the sea
-	float centerZ = (float)sizeZ / 2.0f; // calculate the center z-coordinate of the sea
-	glBegin(GL_QUADS);
-	for (int z = 0; z < sizeZ; z++) {
-		// within camera view
-		for (int x = 0; x < sizeX; x++) {
-			glVertex3f(((float)x - centerX) * 0.1, 0.0f, ((float)z - centerZ) * 0.1); // offset the x and z coordinates by half the size of the sea
-			glVertex3f(((float)(x + 1) - centerX) * 0.1, 0.0f, ((float)z - centerZ) * 0.1);
-			glVertex3f(((float)(x + 1) - centerX) * 0.1, 0.0f, ((float)(z + 1) - centerZ) * 0.1);
-			glVertex3f(((float)x - centerX) * 0.1, 0.0f, ((float)(z + 1) - centerZ) * 0.1);
-		// more accurate scene but not within camera view
-			/*glVertex3f(((float)x - centerX) * 1, 0.0f, ((float)z - centerZ) * 1); // offset the x and z coordinates by half the size of the sea
-			glVertex3f(((float)(x + 1) - centerX) * 1, 0.0f, ((float)z - centerZ) * 1);
-			glVertex3f(((float)(x + 1) - centerX) * 1, 0.0f, ((float)(z + 1) - centerZ) * 1);
-			glVertex3f(((float)x - centerX) * 1, 0.0f, ((float)(z + 1) - centerZ) * 1);
-		}
-	}
-	glEnd();
-}*/
+void drawHelicopter() {
+	GLUquadricObj* quadricPtr;
+
+	// helicopter base
+	glPushMatrix();
+
+	glTranslatef(heliPos.x, heliPos.y, heliPos.z);
+	glRotatef(heliAngle, 0.0f, 1.0f, 0.0f);
+	quadricPtr = gluNewQuadric();
+
+	// set to greyish blue
+	glColor3f(126.0f / 255.0f, 148.0f / 255.0f, 142.0f / 255.0f);
+	gluQuadricDrawStyle(quadricPtr, GLU_FILL);
+	gluSphere(quadricPtr, heliRadius, 10, 5);
+
+	// helicopter legs
+	glPushMatrix();
+	glTranslatef(0, -heliRadius + 0.01, 0);
+	// right leg
+	drawRectangle3D(0.025, 0.01, 0.0, 0.05, -0.02, 0.01);
+	// left leg
+	drawRectangle3D(-0.025, 0.01, 0.0, -0.05, -0.02, 0.01);
+
+
+	glPopMatrix();
+
+	// helicopter tail
+	glPushMatrix();
+
+	glTranslatef(0, 0, heliRadius);
+
+	gluCylinder(quadricPtr, 0.02, 0.01, heliTailLength, 5, 5);
+
+	// helicopter back propellor
+	glPushMatrix();
+	// set to blue 
+	glColor3f(75.0f / 255.0f, 222.0f / 255.0f, 222.0f / 255.0f);
+	glTranslatef(0.015, 0, heliTailLength);
+	glRotatef(propellorAngle, 1, 0, 0);
+
+	// horizontal propellor
+	drawRectangle3D(0.0, 0.0, -0.055, 0.01, 0.01, 0.055);
+	// vertical propellor
+	drawRectangle3D(0.0, -0.055, 0.0, 0.01, 0.055, 0.01);
+
+	glPopMatrix();
+
+	glPopMatrix();
+
+	// helicopter top propellor
+	glPushMatrix();
+	glTranslatef(0, heliRadius, 0);
+	glRotatef(propellorAngle2, 0, 1, 0);
+
+	// horizontal propellor
+	drawRectangle3D(0.0, 0.0, -.15, 0.01, 0.015, 0.15);
+	// horizontal propellor
+	drawRectangle3D(-.15, 0, 0.0, .15, 0.015, 0.01);
+
+	glPopMatrix();
+
+
+	gluDeleteQuadric(quadricPtr);
+
+	glPopMatrix();
+}
 
 void drawSea(int sizeX, int sizeZ, float time, float maxY) {
 	float centerX = (float)sizeX / 2.0f;
@@ -738,8 +824,8 @@ void drawSea(int sizeX, int sizeZ, float time, float maxY) {
 	int index = 0;
 	for (int z = 0; z < sizeZ; z++) {
 		for (int x = 0; x < sizeX; x++) {
-			float vertexX = ((float)x - centerX) * 0.1f;
-			float vertexZ = ((float)z - centerZ) * 0.1f;
+			float vertexX = ((float)x - centerX) * sceneMultiplier;
+			float vertexZ = ((float)z - centerZ) * sceneMultiplier;
 			float vertexY = amplitude * sinf(frequency * vertexX + time) * sinf(frequency * vertexZ + time);
 			vertices[index++] = vertexX;
 			vertices[index++] = vertexY;
@@ -761,9 +847,31 @@ void drawSea(int sizeX, int sizeZ, float time, float maxY) {
 		int vertexIndex = indices[i] * 3;
 		glVertex3f(vertices[vertexIndex], vertices[vertexIndex + 1], vertices[vertexIndex + 2]);
 	}
+
 	glEnd();
 	free(vertices);
 	free(indices);
+}
+
+void drawCylinder() {
+	const float pi = 3.14159265358979323846f;
+	const int sides = 12;
+	unsigned int numberOfSegments = 64;
+	float angleIncrement = (2.0f * pi) / (numberOfSegments);
+	float textureCoordinateIncrement = 1.0f / (numberOfSegments);
+
+	glBindTexture(GL_TEXTURE_2D, skyTexture); // bind the sky texture
+
+	glBegin(GL_QUAD_STRIP);
+	for (unsigned int i = 0; i <= numberOfSegments; ++i)
+	{
+		float c = seaRadius * cos(angleIncrement * i);
+		float s = seaRadius * sin(angleIncrement	* i);
+
+		glTexCoord2f(textureCoordinateIncrement * i, 0); glVertex3f(c, 0.0f, s);
+		glTexCoord2f(textureCoordinateIncrement * i, 2.0f); glVertex3f(c, 2.0f, s);
+	}
+	glEnd();
 }
 
 // draw sea and mountain range and sky and all bg related objects
@@ -773,84 +881,10 @@ void drawScene() {
 	float deltaTime = currentTime - lastTime;
 	lastTime = currentTime;
 	drawSea(seaSizeX, seaSizeZ, currentTime, seaMaxY); // pass in the current time value
+	drawCylinder();
 }
 
-/*
-	Advance our animation by FRAME_TIME milliseconds.
-
-	Note: Our template's GLUT idle() callback calls this once before each new
-	frame is drawn, EXCEPT the very first frame drawn after our application
-	starts. Any setup required before the first frame is drawn should be placed
-	in init().
-*/
-void think(void)
-{
-
-	//TODO helicopter start and stop animation 
-	if (heliStart) {
-		propellorAngle += propellorSpeed * FRAME_TIME_SEC;
-		propellorAngle2 += propellorSpeed * 1.5 * FRAME_TIME_SEC;
-	}
-	else {
-		// decrement propellor angle until 0
-		if (propellorAngle > 0) {
-			propellorAngle -= propellorSpeed * 0.5 * FRAME_TIME_SEC;
-		}
-		if (propellorAngle2 > 0) {
-			propellorAngle2 -= propellorSpeed * 0.5 * FRAME_TIME_SEC;
-		}
-
-	}
-
-	// FOR DEBUGGING
-	if (sideView) {
-		camPos.x = 2;
-		camPos.z = 0;
-	}
-	/*
-		TEMPLATE: REPLACE THIS COMMENT WITH YOUR ANIMATION/SIMULATION CODE
-
-		In this function, we update all the variables that control the animated
-		parts of our simulated world. For example: if you have a moving box, this is
-		where you update its coordinates to make it move. If you have something that
-		spins around, here's where you update its angle.
-
-		NOTHING CAN BE DRAWN IN HERE: you can only update the variables that control
-		how everything will be drawn later in display().
-
-		How much do we move or rotate things? Because we use a fixed frame rate, we
-		assume there's always FRAME_TIME milliseconds between drawing each frame. So,
-		every time think() is called, we need to work out how far things should have
-		moved, rotated, or otherwise changed in that period of time.
-
-		Movement example:
-		* Let's assume a distance of 1.0 GL units is 1 metre.
-		* Let's assume we want something to move 2 metres per second on the x axis
-		* Each frame, we'd need to update its position like this:
-			x += 2 * (FRAME_TIME / 1000.0f)
-		* Note that we have to convert FRAME_TIME to seconds. We can skip this by
-		  using a constant defined earlier in this template:
-			x += 2 * FRAME_TIME_SEC;
-
-		Rotation example:
-		* Let's assume we want something to do one complete 360-degree rotation every
-		  second (i.e. 60 Revolutions Per Minute, or RPM).
-		* Each frame, we'd need to update our object's angle like this (we'll use the
-		  FRAME_TIME_SEC constant as per the example above):
-			a += 360 * FRAME_TIME_SEC;
-
-		This works for any type of "per second" change: just multiply the amount you'd
-		want to move in a full second by FRAME_TIME_SEC, and add or subtract that
-		from whatever variable you're updating.
-
-		You can use this same approach to animate other things like color, opacity,
-		brightness of lights, etc.
-	*/
-
-	/*
-		Keyboard motion handler: complete this section to make your "player-controlled"
-		object respond to keyboard input.
-	*/
+void playerControls() {
 	if (keyboardMotion.Yaw || keyboardMotion.Heave || keyboardMotion.Surge || keyboardMotion.Sway) {
 		heliStart = 1;
 
@@ -898,6 +932,46 @@ void think(void)
 		heliPos.y += heave;
 		camPos.y = heliPos.y + 0.5f;
 	}
+}
+
+/*
+	Advance our animation by FRAME_TIME milliseconds.
+
+	Note: Our template's GLUT idle() callback calls this once before each new
+	frame is drawn, EXCEPT the very first frame drawn after our application
+	starts. Any setup required before the first frame is drawn should be placed
+	in init().
+*/
+void think(void)
+{
+
+	//TODO helicopter start and stop animation 
+	if (heliStart) {
+		propellorAngle += propellorSpeed * FRAME_TIME_SEC;
+		propellorAngle2 += propellorSpeed * 1.5 * FRAME_TIME_SEC;
+	}
+	else {
+		// decrement propellor angle until 0
+		if (propellorAngle > 0) {
+			propellorAngle -= propellorSpeed * 0.5 * FRAME_TIME_SEC;
+		}
+		if (propellorAngle2 > 0) {
+			propellorAngle2 -= propellorSpeed * 0.5 * FRAME_TIME_SEC;
+		}
+
+	}
+
+	// FOR DEBUGGING
+	if (sideView) {
+		camPos.x = 2;
+		camPos.z = 0;
+	}
+
+	/*
+		Keyboard motion handler: complete this section to make your "player-controlled"
+		object respond to keyboard input.
+	*/
+	playerControls();
 	// collision detection for heli and sea (sea max y)
 	if (heliPos.y - (heliRadius + heliLegLength) < seaMaxY) {
 		heliPos.y = seaMaxY+heliRadius+heliLegLength;
